@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ActivityPanel } from '@/components/activity/ActivityPanel';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { useActiveDocuments, useCreateDocument } from '@/hooks/useDocuments';
@@ -22,6 +23,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { data: documents = [], isLoading } = useActiveDocuments();
   const createMutation = useCreateDocument();
   const [signingOut, setSigningOut] = useState(false);
+  const [activeTab, setActiveTab] = useState<'documents' | 'activity'>('documents');
+  const currentDocumentId = pathname.match(/^\/documents\/([^/]+)/)?.[1] ?? null;
+  const effectiveTab = currentDocumentId ? activeTab : 'documents';
 
   if (collapsed) {
     return (
@@ -93,52 +97,75 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Document list */}
       <nav className="flex-1 overflow-y-auto px-2 py-1">
-        <SidebarSection label="Documents">
-          {isLoading ? (
-            <div className="space-y-1.5 px-2 py-1">
-              <SkeletonLine width="75%" />
-              <SkeletonLine width="60%" />
-              <SkeletonLine width="85%" />
-            </div>
-          ) : documents.length === 0 ? (
-            <p className="px-2.5 py-2 text-xs text-muted-foreground">No documents yet</p>
-          ) : (
-            documents.map((doc) => {
-              const href = `/documents/${doc.id}`;
-              const active = pathname === href;
-              return (
-                <Link
-                  key={doc.id}
-                  href={href}
-                  className={cn(
-                    'group flex items-center gap-2 rounded-lg px-2.5 py-[7px] text-[13px] transition-colors',
-                    active
-                      ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-                      : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                  )}
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                    className="shrink-0 opacity-50 group-hover:opacity-80 transition-opacity"
+        {currentDocumentId && (
+          <div className="mb-2 grid grid-cols-2 gap-1 rounded-lg bg-muted/50 p-1">
+            <TabButton
+              active={effectiveTab === 'documents'}
+              onClick={() => setActiveTab('documents')}
+            >
+              Docs
+            </TabButton>
+            <TabButton
+              active={effectiveTab === 'activity'}
+              onClick={() => setActiveTab('activity')}
+            >
+              Activity
+            </TabButton>
+          </div>
+        )}
+
+        {effectiveTab === 'activity' && currentDocumentId ? (
+          <SidebarSection label="Activity">
+            <ActivityPanel documentId={currentDocumentId} />
+          </SidebarSection>
+        ) : (
+          <SidebarSection label="Documents">
+            {isLoading ? (
+              <div className="space-y-1.5 px-2 py-1">
+                <SkeletonLine width="75%" />
+                <SkeletonLine width="60%" />
+                <SkeletonLine width="85%" />
+              </div>
+            ) : documents.length === 0 ? (
+              <p className="px-2.5 py-2 text-xs text-muted-foreground">No documents yet</p>
+            ) : (
+              documents.map((doc) => {
+                const href = `/documents/${doc.id}`;
+                const active = pathname === href;
+                return (
+                  <Link
+                    key={doc.id}
+                    href={href}
+                    className={cn(
+                      'group flex items-center gap-2 rounded-lg px-2.5 py-[7px] text-[13px] transition-colors',
+                      active
+                        ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                    )}
                   >
-                    <rect x="3" y="2" width="10" height="12" rx="1.5" />
-                    <line x1="6" y1="6" x2="10" y2="6" />
-                    <line x1="6" y1="9" x2="9" y2="9" />
-                  </svg>
-                  <span className="truncate">{doc.title || 'Untitled'}</span>
-                </Link>
-              );
-            })
-          )}
-        </SidebarSection>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                      className="shrink-0 opacity-50 group-hover:opacity-80 transition-opacity"
+                    >
+                      <rect x="3" y="2" width="10" height="12" rx="1.5" />
+                      <line x1="6" y1="6" x2="10" y2="6" />
+                      <line x1="6" y1="9" x2="9" y2="9" />
+                    </svg>
+                    <span className="truncate">{doc.title || 'Untitled'}</span>
+                  </Link>
+                );
+              })
+            )}
+          </SidebarSection>
+        )}
 
         <Separator className="my-2" />
 
@@ -233,6 +260,31 @@ function SidebarSection({ label, children }: { label: string; children: React.Re
       </p>
       <div className="mt-0.5 space-y-0.5">{children}</div>
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'rounded-md px-2 py-1 text-xs font-medium transition-colors',
+        active
+          ? 'bg-sidebar text-sidebar-foreground shadow-sm'
+          : 'text-muted-foreground hover:text-sidebar-foreground',
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

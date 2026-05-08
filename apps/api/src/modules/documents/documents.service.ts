@@ -3,13 +3,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ActivityType } from '@prisma/client';
 import type { Document } from '@prisma/client';
 import type { DocumentSummary } from '@quill-collab/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { ActivityService } from '../activity/activity.service';
 
 @Injectable()
 export class DocumentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activity: ActivityService,
+  ) {}
 
   listActive(ownerId: string): Promise<Document[]> {
     return this.prisma.document.findMany({
@@ -33,21 +38,39 @@ export class DocumentsService {
     return doc;
   }
 
-  create(ownerId: string, input: { title?: string }): Promise<Document> {
-    return this.prisma.document.create({
+  async create(ownerId: string, input: { title?: string }): Promise<Document> {
+    const doc = await this.prisma.document.create({
       data: {
         ownerId,
         title: input.title?.trim() || 'Untitled',
       },
     });
+
+    await this.activity.record({
+      documentId: doc.id,
+      type: ActivityType.CREATE,
+      actorId: ownerId,
+      metadata: { title: doc.title },
+    });
+
+    return doc;
   }
 
   async rename(ownerId: string, id: string, title: string): Promise<Document> {
     await this.assertOwned(ownerId, id, { allowTrashed: false });
-    return this.prisma.document.update({
+    const doc = await this.prisma.document.update({
       where: { id },
       data: { title: title.trim() },
     });
+
+    await this.activity.record({
+      documentId: doc.id,
+      type: ActivityType.RENAME,
+      actorId: ownerId,
+      metadata: { title: doc.title },
+    });
+
+    return doc;
   }
 
   async softDelete(ownerId: string, id: string): Promise<Document> {
@@ -63,10 +86,19 @@ export class DocumentsService {
     if (doc.deletedAt === null) {
       return doc;
     }
-    return this.prisma.document.update({
+    const restored = await this.prisma.document.update({
       where: { id },
       data: { deletedAt: null },
     });
+
+    await this.activity.record({
+      documentId: restored.id,
+      type: ActivityType.RESTORE,
+      actorId: ownerId,
+      metadata: { source: 'trash' },
+    });
+
+    return restored;
   }
 
   async hardDelete(ownerId: string, id: string): Promise<void> {

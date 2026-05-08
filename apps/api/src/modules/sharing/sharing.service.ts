@@ -5,10 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
+import { ActivityType } from '@prisma/client';
 import type { Share } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import type { ShareSummary, ResolvedShare } from '@quill-collab/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { ActivityService } from '../activity/activity.service';
 
 @Injectable()
 export class SharingService {
@@ -17,6 +19,7 @@ export class SharingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly moduleRef: ModuleRef,
+    private readonly activity: ActivityService,
   ) {}
 
   /** Create a shareable link for a document. Only the owner can share. */
@@ -43,6 +46,13 @@ export class SharingService {
     this.logger.log(
       `Share created: doc=${documentId} perm=${input.permission} by=${userId}`,
     );
+
+    await this.activity.record({
+      documentId,
+      type: ActivityType.SHARE,
+      actorId: userId,
+      metadata: { permission: input.permission },
+    });
 
     return share;
   }

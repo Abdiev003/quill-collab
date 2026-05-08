@@ -16,7 +16,10 @@ import type { Server as HttpServer } from 'node:http';
 import { YjsPersistenceService } from './yjs-persistence.service';
 import { VersionsService } from '../versions/versions.service';
 import { SharingService } from '../sharing/sharing.service';
+import { ActivityService } from '../activity/activity.service';
+import { ActivityType } from '@prisma/client';
 import type { JwtPayload } from '../auth/strategies/jwt.strategy';
+import type { ActivitySummary } from '@quill-collab/shared';
 import { Injectable } from '@nestjs/common';
 
 /** Debounce delay before persisting Yjs state after last update (ms) */
@@ -37,6 +40,7 @@ interface Room {
   ydoc: Y.Doc;
   awareness: awarenessProtocol.Awareness;
   clients: Map<WebSocket, ClientMeta>;
+  pendingEditor: ClientMeta | null;
   persistTimer: ReturnType<typeof setTimeout> | null;
   cleanupTimer: ReturnType<typeof setTimeout> | null;
 }
@@ -45,6 +49,7 @@ interface Room {
 export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CollaborationGateway.name);
   private readonly rooms = new Map<string, Room>();
+  private readonly activityClients = new Map<string, Set<WebSocket>>();
   private wss!: WebSocketServer;
 
   constructor(
@@ -54,6 +59,7 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     private readonly httpAdapterHost: HttpAdapterHost,
     private readonly versionsService: VersionsService,
     private readonly sharingService: SharingService,
+    private readonly activityService: ActivityService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -68,9 +74,14 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     this.wss = new WebSocketServer({ noServer: true });
 
     httpServer.on('upgrade', (req, socket, head) => {
-      // Accept all upgrade requests — y-websocket sends
-      // ws://host/{documentId} ̰?token=xxx&documentId=xxx
+      // Accept all upgrade requests. Yjs uses /:documentId, activity uses
+      // /activity/:documentId so JSON messages never touch the Yjs protocol.
       this.wss.handleUpgrade(req, socket, head, (ws) => {
+        const url = new URL(req.url ?? '', 'http://localhost');
+        if (url.pathname.startsWith('/activity/')) {
+          this.handleActivityConnection(ws, req);
+          return;
+        }
         this.handleConnection(ws, req);
       });
     });
@@ -205,6 +216,55 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async handleActivityConnection(
+    client: WebSocket,
+    req: IncomingMessage,
+  ): Promise<void> {
+    try {
+      const url = new URL(req.url ?? '', 'http://localhost');
+      const token = url.searchParams.get('token');
+      const documentId = url.pathname.replace(/^\/activity\/+/, '');
+
+      if (!token || !documentId) {
+        this.logger.warn('Activity WS rejected: missing token or documentId');
+        client.close(4001, 'Missing token or documentId');
+        return;
+      }
+
+      let payload: JwtPayload;
+      try {
+        payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
+          secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
+        });
+      } catch {
+        this.logger.warn('Activity WS rejected: invalid JWT');
+        client.close(4003, 'Invalid token');
+        return;
+      }
+
+      await this.activityService.assertDocumentAccess(payload.sub, documentId);
+
+      const clients =
+        this.activityClients.get(documentId) ?? new Set<WebSocket>();
+      clients.add(client);
+      this.activityClients.set(documentId, clients);
+
+      client.on('close', () => {
+        clients.delete(client);
+        if (clients.size === 0) {
+          this.activityClients.delete(documentId);
+        }
+      });
+
+      this.logger.log(
+        `Activity client connected: user=${payload.sub} doc=${documentId}`,
+      );
+    } catch (err) {
+      this.logger.error('Error during activity WS connection', err);
+      client.close(4500, 'Internal error');
+    }
+  }
+
   private handleDisconnect(client: WebSocket): void {
     for (const [documentId, room] of this.rooms.entries()) {
       if (!room.clients.has(client)) continue;
@@ -238,6 +298,12 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
       room.ydoc.destroy();
     }
     this.rooms.clear();
+    for (const clients of this.activityClients.values()) {
+      for (const client of clients) {
+        client.close();
+      }
+    }
+    this.activityClients.clear();
     this.wss?.close();
     this.logger.log('All rooms persisted and cleaned up on shutdown');
   }
@@ -312,6 +378,9 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
 
       case syncProtocol.messageYjsUpdate:
         syncProtocol.readUpdate(decoder, room.ydoc, client);
+        if (meta) {
+          room.pendingEditor = meta;
+        }
         break;
 
       default:
@@ -365,6 +434,7 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
       ydoc,
       awareness,
       clients: new Map(),
+      pendingEditor: null,
       persistTimer: null,
       cleanupTimer: null,
     };
@@ -462,9 +532,12 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     room.persistTimer = setTimeout(() => {
       const state = Y.encodeStateAsUpdate(room.ydoc);
       void this.persistence.saveDocument(documentId, state);
+      const pendingEditor = room.pendingEditor;
+      room.pendingEditor = null;
 
       // Trigger version snapshot — find the last editor in the room
-      const lastEditorUserId = this.getLastEditorUserId(room);
+      const lastEditorUserId =
+        pendingEditor?.userId ?? this.getLastEditorUserId(room);
       if (lastEditorUserId) {
         void this.versionsService.onDocumentIdle(
           documentId,
@@ -473,8 +546,34 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
         );
       }
 
+      if (pendingEditor) {
+        void this.activityService.record({
+          documentId,
+          type: ActivityType.EDIT_BATCH,
+          actorId: pendingEditor.userId,
+          actorName:
+            pendingEditor.email === 'anonymous' ? 'Guest' : pendingEditor.email,
+        });
+      }
+
       room.persistTimer = null;
     }, PERSIST_DEBOUNCE_MS);
+  }
+
+  broadcastActivity(documentId: string, activity: ActivitySummary): void {
+    const clients = this.activityClients.get(documentId);
+    if (!clients) return;
+
+    const payload = JSON.stringify({
+      type: 'activity:new',
+      activity,
+    });
+
+    for (const client of clients) {
+      if (client.readyState === client.OPEN) {
+        client.send(payload);
+      }
+    }
   }
 
   async persistRoomNow(documentId: string): Promise<boolean> {

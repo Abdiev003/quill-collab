@@ -27,8 +27,9 @@ model Document {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  versions Version[]
-  shares   Share[]
+  versions   Version[]
+  shares     Share[]
+  activities Activity[]
 
   @@index([ownerId, deletedAt])
 }
@@ -39,23 +40,23 @@ model Version {
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   /// Full Yjs state snapshot at this point in time
-  ySnapshot  Bytes
+  ySnapshot Bytes
 
   /// First ~200 chars of plain text for quick display in version list
-  preview    String
+  preview String
 
   /// The userId who was last active when the snapshot was taken
-  createdBy  String
+  createdBy String
 
-  createdAt  DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([documentId, createdAt])
 }
 
 model Share {
-  id         String          @id @default(cuid())
+  id         String   @id @default(cuid())
   documentId String
-  document   Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   /// Unique shareable URL token
   token      String          @unique
@@ -65,7 +66,30 @@ model Share {
   createdAt  DateTime        @default(now())
 }
 
+model Activity {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  type      ActivityType
+  actorId   String
+  actorName String?
+  metadata  Json?
+  createdAt DateTime     @default(now())
+
+  @@index([documentId, createdAt])
+  @@index([documentId, actorId, type, createdAt])
+}
+
 enum SharePermission {
   READ
   WRITE
+}
+
+enum ActivityType {
+  CREATE
+  RENAME
+  EDIT_BATCH
+  RESTORE
+  SHARE
 }

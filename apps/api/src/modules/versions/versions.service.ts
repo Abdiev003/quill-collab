@@ -5,9 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
+import { ActivityType } from '@prisma/client';
 import type { Version } from '@prisma/client';
 import * as Y from 'yjs';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { ActivityService } from '../activity/activity.service';
 
 /** Maximum length of the plain-text preview stored with each version */
 const PREVIEW_MAX_LENGTH = 200;
@@ -24,6 +26,7 @@ export class VersionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly moduleRef: ModuleRef,
+    private readonly activity: ActivityService,
   ) {}
 
   async onDocumentIdle(
@@ -99,13 +102,21 @@ export class VersionsService {
       data: { yState: version.ySnapshot },
     });
 
+    await this.activity.record({
+      documentId,
+      type: ActivityType.RESTORE,
+      actorId: requesterId,
+      metadata: { source: 'version', versionId },
+    });
+
     // Reset the in-memory WS room so the old Y.Doc doesn't persist
     // back over the restored state. Uses ModuleRef to avoid circular deps.
     try {
-      const { CollaborationGateway } = await import(
-        '../collaboration/collaboration.gateway'
-      );
-      const gateway = this.moduleRef.get(CollaborationGateway, { strict: false });
+      const { CollaborationGateway } =
+        await import('../collaboration/collaboration.gateway');
+      const gateway = this.moduleRef.get(CollaborationGateway, {
+        strict: false,
+      });
       gateway.resetRoom(documentId);
     } catch {
       this.logger.warn(
