@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Editor } from '@/components/editor/Editor';
 import { VersionHistoryDrawer } from '@/components/documents/VersionHistoryDrawer';
+import { ShareModal } from '@/components/documents/ShareModal';
 import { useDocument } from '@/hooks/useDocument';
 import { useRenameDocument } from '@/hooks/useDocuments';
 import { useCollaboration } from '@/lib/collab/useCollaboration';
@@ -99,7 +100,7 @@ function DocumentEditor({
 }
 
 // ---------------------------------------------------------------------------
-// Inline-editable document title + version history button
+// Inline-editable document title + version history + share button
 // ---------------------------------------------------------------------------
 
 function DocumentHeader({
@@ -114,6 +115,7 @@ function DocumentHeader({
   const [title, setTitle] = useState(initialTitle);
   const [editing, setEditing] = useState(false);
   const [versionDrawerOpen, setVersionDrawerOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const renameMutation = useRenameDocument();
 
@@ -182,30 +184,59 @@ function DocumentHeader({
           )}
         </div>
 
-        {/* Version history button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setVersionDrawerOpen(true)}
-          className="gap-1.5 text-muted-foreground hover:text-foreground"
-          aria-label="Version history"
-          title="Version history"
-        >
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        {/* Actions: Share + Version history */}
+        <div className="flex items-center gap-1">
+          {/* Share button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShareModalOpen(true)}
+            className="gap-1.5 text-muted-foreground hover:text-foreground"
+            aria-label="Share document"
+            title="Share document"
           >
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          <span className="hidden sm:inline text-xs">History</span>
-        </Button>
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+              <polyline points="16 6 12 2 8 6" />
+              <line x1="12" y1="2" x2="12" y2="15" />
+            </svg>
+            <span className="hidden sm:inline text-xs">Share</span>
+          </Button>
+
+          {/* Version history button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setVersionDrawerOpen(true)}
+            className="gap-1.5 text-muted-foreground hover:text-foreground"
+            aria-label="Version history"
+            title="Version history"
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span className="hidden sm:inline text-xs">History</span>
+          </Button>
+        </div>
       </div>
 
       {/* Version History Drawer */}
@@ -214,6 +245,13 @@ function DocumentHeader({
         open={versionDrawerOpen}
         onClose={() => setVersionDrawerOpen(false)}
         disconnectProvider={disconnectProvider}
+      />
+
+      {/* Share Modal */}
+      <ShareModal
+        documentId={documentId}
+        open={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
       />
     </>
   );

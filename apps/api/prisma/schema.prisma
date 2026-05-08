@@ -28,6 +28,7 @@ model Document {
   updatedAt DateTime  @updatedAt
 
   versions Version[]
+  shares   Share[]
 
   @@index([ownerId, deletedAt])
 }
@@ -49,4 +50,22 @@ model Version {
   createdAt  DateTime @default(now())
 
   @@index([documentId, createdAt])
+}
+
+model Share {
+  id         String          @id @default(cuid())
+  documentId String
+  document   Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  /// Unique shareable URL token
+  token      String          @unique
+  permission SharePermission
+  createdBy  String
+  expiresAt  DateTime?
+  createdAt  DateTime        @default(now())
+}
+
+enum SharePermission {
+  READ
+  WRITE
 }

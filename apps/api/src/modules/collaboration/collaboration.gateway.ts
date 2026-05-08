@@ -15,6 +15,7 @@ import type { IncomingMessage } from 'node:http';
 import type { Server as HttpServer } from 'node:http';
 import { YjsPersistenceService } from './yjs-persistence.service';
 import { VersionsService } from '../versions/versions.service';
+import { SharingService } from '../sharing/sharing.service';
 import type { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Injectable } from '@nestjs/common';
 
@@ -28,6 +29,8 @@ interface ClientMeta {
   userId: string;
   email: string;
   documentId: string;
+  /** 'owner' for JWT-authenticated users, or the share permission level */
+  accessLevel: 'owner' | 'READ' | 'WRITE';
 }
 
 interface Room {
@@ -50,6 +53,7 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     private readonly persistence: YjsPersistenceService,
     private readonly httpAdapterHost: HttpAdapterHost,
     private readonly versionsService: VersionsService,
+    private readonly sharingService: SharingService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -83,35 +87,66 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     req: IncomingMessage,
   ): Promise<void> {
     try {
-      // y-websocket URL: ws://host/{roomname}?token=xxx&documentId=xxx
+      // y-websocket URL: ws://host/{roomname}?token=xxx&documentId=xxx&shareToken=xxx
       const url = new URL(req.url ?? '', 'http://localhost');
       const token = url.searchParams.get('token');
+      const shareToken = url.searchParams.get('shareToken');
       const documentId =
         url.pathname.replace(/^\/+/, '') || url.searchParams.get('documentId');
 
-      if (!token || !documentId) {
-        this.logger.warn('WS rejected: missing token or documentId');
-        client.close(4001, 'Missing token or documentId');
+      if (!documentId) {
+        this.logger.warn('WS rejected: missing documentId');
+        client.close(4001, 'Missing documentId');
         return;
       }
 
-      // Validate JWT
-      let payload: JwtPayload;
-      try {
-        payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
-          secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
-        });
-      } catch {
-        this.logger.warn('WS rejected: invalid JWT');
-        client.close(4003, 'Invalid token');
+      if (!token && !shareToken) {
+        this.logger.warn('WS rejected: missing token and shareToken');
+        client.close(4001, 'Missing authentication');
         return;
       }
 
-      const meta: ClientMeta = {
-        userId: payload.sub,
-        email: payload.email,
-        documentId,
-      };
+      let meta: ClientMeta;
+
+      if (token) {
+        // Authenticate via JWT
+        let payload: JwtPayload;
+        try {
+          payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
+            secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
+          });
+        } catch {
+          this.logger.warn('WS rejected: invalid JWT');
+          client.close(4003, 'Invalid token');
+          return;
+        }
+
+        meta = {
+          userId: payload.sub,
+          email: payload.email,
+          documentId,
+          accessLevel: 'owner',
+        };
+      } else {
+        // Authenticate via share token
+        const shareResult = await this.sharingService.validateShareToken(
+          shareToken!,
+          documentId,
+        );
+
+        if (!shareResult) {
+          this.logger.warn('WS rejected: invalid share token');
+          client.close(4003, 'Invalid share token');
+          return;
+        }
+
+        meta = {
+          userId: `anon-${Date.now()}`,
+          email: 'anonymous',
+          documentId,
+          accessLevel: shareResult.permission,
+        };
+      }
 
       // Get or create room
       const room = await this.getOrCreateRoom(documentId);
@@ -126,7 +161,7 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
       room.clients.set(client, meta);
 
       this.logger.log(
-        `Client connected: user=${payload.sub} doc=${documentId} (${room.clients.size} in room)`,
+        `Client connected: user=${meta.userId} doc=${documentId} (${room.clients.size} in room)`,
       );
 
       // Send sync step 1
@@ -134,6 +169,14 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
       encoding.writeVarUint(encoder, CollabMessageType.SYNC);
       syncProtocol.writeSyncStep1(encoder, room.ydoc);
       this.sendBinary(client, encoding.toUint8Array(encoder));
+
+      // Also send the full current state immediately. The y-websocket client
+      // marks itself synced only after receiving SyncStep2, and public share
+      // viewers should never depend on sending their own state first.
+      const stateEncoder = encoding.createEncoder();
+      encoding.writeVarUint(stateEncoder, CollabMessageType.SYNC);
+      syncProtocol.writeSyncStep2(stateEncoder, room.ydoc);
+      this.sendBinary(client, encoding.toUint8Array(stateEncoder));
 
       // Send current awareness state to the new client
       const awarenessEncoder = encoding.createEncoder();
@@ -242,15 +285,38 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     room: Room,
     decoder: decoding.Decoder,
   ): void {
+    const meta = room.clients.get(client);
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, CollabMessageType.SYNC);
 
-    const syncMessageType = syncProtocol.readSyncMessage(
-      decoder,
-      encoder,
-      room.ydoc,
-      null,
-    );
+    const syncMessageType = decoding.readVarUint(decoder);
+
+    if (
+      meta?.accessLevel === 'READ' &&
+      syncMessageType !== syncProtocol.messageYjsSyncStep1
+    ) {
+      this.logger.warn(
+        `Ignored read-only sync mutation: user=${meta.userId} doc=${meta.documentId}`,
+      );
+      return;
+    }
+
+    switch (syncMessageType) {
+      case syncProtocol.messageYjsSyncStep1:
+        syncProtocol.readSyncStep1(decoder, encoder, room.ydoc);
+        break;
+
+      case syncProtocol.messageYjsSyncStep2:
+        syncProtocol.readSyncStep2(decoder, room.ydoc, client);
+        break;
+
+      case syncProtocol.messageYjsUpdate:
+        syncProtocol.readUpdate(decoder, room.ydoc, client);
+        break;
+
+      default:
+        throw new Error(`Unknown sync message type: ${syncMessageType}`);
+    }
 
     // If we wrote a response (sync step 2 or update), send it back
     if (encoding.length(encoder) > 1) {
@@ -259,8 +325,12 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
 
     // Broadcast is handled by ydoc.on('update') in getOrCreateRoom.
     // Only schedule persistence here.
-    const documentId = room.clients.get(client)?.documentId;
-    if (documentId && syncMessageType === syncProtocol.messageYjsUpdate) {
+    const documentId = meta?.documentId;
+    if (
+      documentId &&
+      (syncMessageType === syncProtocol.messageYjsUpdate ||
+        syncMessageType === syncProtocol.messageYjsSyncStep2)
+    ) {
       this.schedulePersist(documentId, room);
     }
   }
@@ -405,6 +475,15 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
 
       room.persistTimer = null;
     }, PERSIST_DEBOUNCE_MS);
+  }
+
+  async persistRoomNow(documentId: string): Promise<boolean> {
+    const room = this.rooms.get(documentId);
+    if (!room) return false;
+
+    const state = Y.encodeStateAsUpdate(room.ydoc);
+    await this.persistence.saveDocument(documentId, state);
+    return true;
   }
 
   /** Find the userId of the last (or any) editor currently in the room */

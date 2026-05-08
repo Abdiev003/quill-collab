@@ -8,6 +8,7 @@ import { PrismaModule } from './infra/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CollaborationModule } from './modules/collaboration/collaboration.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { SharingModule } from './modules/sharing/sharing.module';
 import { UsersModule } from './modules/users/users.module';
 import { VersionsModule } from './modules/versions/versions.module';
 
@@ -27,6 +28,7 @@ import { VersionsModule } from './modules/versions/versions.module';
     AuthModule,
     CollaborationModule,
     DocumentsModule,
+    SharingModule,
     VersionsModule,
   ],
   controllers: [AppController],
