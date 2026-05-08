@@ -54,4 +54,4 @@ COPY --from=build --chown=nestjs:nodejs /app/pnpm-workspace.yaml ./pnpm-workspac
 USER nestjs
 WORKDIR /app/apps/api
 EXPOSE 4000
-CMD ["pnpm", "start:docker"]
+CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node dist/main"]
