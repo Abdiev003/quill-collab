@@ -312,6 +312,9 @@ function SharedEditorContent({
       editorProps: {
         attributes: {
           class: 'prose prose-zinc dark:prose-invert max-w-none focus:outline-none px-6 py-4',
+          role: 'textbox',
+          'aria-label': 'Shared document editor',
+          'aria-multiline': 'true',
         },
       },
       immediatelyRender: false,

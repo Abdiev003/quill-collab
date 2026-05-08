@@ -5,5 +5,6 @@
 
 export interface HealthResponse {
   status: 'ok';
+  db: 'ok';
   uptimeSeconds: number;
 }

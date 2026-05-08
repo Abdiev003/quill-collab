@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Editor } from '@/components/editor/Editor';
 import { VersionHistoryDrawer } from '@/components/documents/VersionHistoryDrawer';
 import { ShareModal } from '@/components/documents/ShareModal';
+import { EditorLoadingSkeleton } from '@/components/ui/page-skeletons';
 import { useDocument } from '@/hooks/useDocument';
 import { useRenameDocument } from '@/hooks/useDocuments';
 import { useCollaboration } from '@/lib/collab/useCollaboration';
@@ -18,14 +19,7 @@ export default function DocumentEditorPage() {
   const { data: document, isLoading, isError } = useDocument(id);
 
   if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="flex flex-col items-center gap-3 animate-fade-in">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-transparent border-t-muted-foreground border-r-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Loading document…</p>
-        </div>
-      </div>
-    );
+    return <EditorLoadingSkeleton />;
   }
 
   if (isError || !document) {
@@ -162,6 +156,7 @@ function DocumentHeader({
             <button
               type="button"
               onClick={() => setEditing(true)}
+              aria-label="Rename document"
               className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground transition-opacity hover:opacity-70"
               title="Click to rename"
             >

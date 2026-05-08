@@ -16,9 +16,7 @@ import {
 import { SlashCommandMenu, type SlashCommandMenuRef } from './SlashCommandMenu';
 import tippy, { type Instance as TippyInstance } from 'tippy.js';
 import { createRoot, type Root } from 'react-dom/client';
-import {
-  type CollabSnapshot,
-} from '@/lib/collab/useCollaboration';
+import { type CollabSnapshot } from '@/lib/collab/useCollaboration';
 
 // ---------------------------------------------------------------------------
 // Suggestion render helpers (creates a floating popup with React)
@@ -208,6 +206,9 @@ function EditorInner({
       editorProps: {
         attributes: {
           class: 'prose prose-zinc dark:prose-invert max-w-none focus:outline-none px-6 py-4',
+          role: 'textbox',
+          'aria-label': 'Document editor',
+          'aria-multiline': 'true',
         },
       },
       immediatelyRender: false,
@@ -235,4 +236,3 @@ function EditorInner({
     </div>
   );
 }
-

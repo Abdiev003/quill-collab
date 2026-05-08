@@ -29,10 +29,19 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   if (collapsed) {
     return (
-      <aside className="flex h-full w-12 flex-col items-center border-r border-sidebar-border bg-sidebar py-3">
+      <aside
+        className="flex h-full w-12 flex-col items-center border-r border-sidebar-border bg-sidebar py-3"
+        aria-label="Workspace sidebar"
+      >
         <Tooltip>
-          <TooltipTrigger>
-            <Button variant="ghost" size="icon-sm" onClick={onToggle}>
+          <TooltipTrigger render={<span />}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onToggle}
+              aria-label="Expand sidebar"
+              aria-expanded={false}
+            >
               <ChevronIcon direction="right" />
             </Button>
           </TooltipTrigger>
@@ -43,10 +52,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   }
 
   return (
-    <aside className="flex h-full w-[260px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
+    <aside
+      className="flex h-full w-[260px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar"
+      aria-label="Workspace sidebar"
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3.5">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2" aria-label="Quill home">
           <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <svg
               width="14"
@@ -66,7 +78,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             Quill
           </span>
         </Link>
-        <Button variant="ghost" size="icon-sm" onClick={onToggle}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onToggle}
+          aria-label="Collapse sidebar"
+          aria-expanded={true}
+        >
           <ChevronIcon direction="left" />
         </Button>
       </div>
@@ -77,6 +95,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           className="w-full justify-start gap-2"
           onClick={() => createMutation.mutate({})}
           disabled={createMutation.isPending}
+          aria-label="Create a new document"
         >
           <svg
             width="14"
@@ -96,9 +115,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </div>
 
       {/* Document list */}
-      <nav className="flex-1 overflow-y-auto px-2 py-1">
+      <nav className="flex-1 overflow-y-auto px-2 py-1" aria-label="Workspace navigation">
         {currentDocumentId && (
-          <div className="mb-2 grid grid-cols-2 gap-1 rounded-lg bg-muted/50 p-1">
+          <div
+            className="mb-2 grid grid-cols-2 gap-1 rounded-lg bg-muted/50 p-1"
+            role="tablist"
+            aria-label="Sidebar content"
+          >
             <TabButton
               active={effectiveTab === 'documents'}
               onClick={() => setActiveTab('documents')}
@@ -142,6 +165,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                         ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
                         : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
                     )}
+                    aria-current={active ? 'page' : undefined}
                   >
                     <svg
                       width="14"
@@ -177,6 +201,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
               : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
           )}
+          aria-current={pathname === '/trash' ? 'page' : undefined}
         >
           <svg
             width="14"
@@ -229,6 +254,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             }
           }}
           disabled={signingOut}
+          aria-label="Sign out"
         >
           <svg
             width="12"
@@ -275,6 +301,8 @@ function TabButton({
   return (
     <button
       type="button"
+      role="tab"
+      aria-selected={active}
       onClick={onClick}
       className={cn(
         'rounded-md px-2 py-1 text-xs font-medium transition-colors',

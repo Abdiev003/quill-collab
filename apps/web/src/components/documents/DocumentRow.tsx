@@ -5,10 +5,7 @@ import type { DocumentSummary } from '@quill-collab/shared';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  useRenameDocument,
-  useSoftDeleteDocument,
-} from '@/hooks/useDocuments';
+import { useRenameDocument, useSoftDeleteDocument } from '@/hooks/useDocuments';
 
 export function DocumentRow({ doc }: { doc: DocumentSummary }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -39,7 +36,18 @@ export function DocumentRow({ doc }: { doc: DocumentSummary }) {
     <div className="group flex items-center gap-3 rounded-xl border bg-card px-4 py-3.5 transition-shadow hover:shadow-sm">
       {/* Doc icon */}
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground" aria-hidden="true">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-muted-foreground"
+          aria-hidden="true"
+        >
           <rect x="3" y="2" width="10" height="12" rx="1.5" />
           <line x1="6" y1="6" x2="10" y2="6" />
           <line x1="6" y1="9" x2="9" y2="9" />
@@ -71,7 +79,7 @@ export function DocumentRow({ doc }: { doc: DocumentSummary }) {
             <Button
               variant="ghost"
               size="icon-xs"
-              className="opacity-0 transition-opacity group-hover:opacity-100"
+              className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
               onClick={() => setDraft(doc.title)}
               aria-label="Rename document"
             >
@@ -99,9 +107,10 @@ export function DocumentRow({ doc }: { doc: DocumentSummary }) {
       <Button
         variant="destructive"
         size="xs"
-        className="opacity-0 transition-opacity group-hover:opacity-100"
+        className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
         onClick={() => deleteMutation.mutate({ id: doc.id })}
         disabled={deleteMutation.isPending}
+        aria-label={`Delete ${doc.title || 'Untitled'}`}
       >
         Delete
       </Button>

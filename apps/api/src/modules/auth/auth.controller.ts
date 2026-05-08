@@ -6,8 +6,10 @@ import {
   Post,
   Req,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { AuthResponse, RefreshResponse } from '@quill-collab/shared';
 import type { CookieOptions, Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -17,6 +19,8 @@ import { UsersService } from '../users/users.service';
 
 const REFRESH_COOKIE = 'quill_rt';
 
+@UseGuards(ThrottlerGuard)
+@Throttle({ auth: { limit: 10, ttl: 60_000 } })
 @Controller('auth')
 export class AuthController {
   constructor(

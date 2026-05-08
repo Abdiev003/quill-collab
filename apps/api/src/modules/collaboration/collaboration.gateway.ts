@@ -41,7 +41,6 @@ interface Room {
   awareness: awarenessProtocol.Awareness;
   clients: Map<WebSocket, ClientMeta>;
   pendingEditor: ClientMeta | null;
-  persistTimer: ReturnType<typeof setTimeout> | null;
   cleanupTimer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -291,7 +290,7 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy(): void {
     // Persist all rooms on shutdown
     for (const [documentId, room] of this.rooms.entries()) {
-      if (room.persistTimer) clearTimeout(room.persistTimer);
+      this.persistence.cancelScheduledPersist(documentId);
       if (room.cleanupTimer) clearTimeout(room.cleanupTimer);
       const state = Y.encodeStateAsUpdate(room.ydoc);
       void this.persistence.saveDocument(documentId, state);
@@ -435,7 +434,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
       awareness,
       clients: new Map(),
       pendingEditor: null,
-      persistTimer: null,
       cleanupTimer: null,
     };
 
@@ -490,7 +488,7 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     const room = this.rooms.get(documentId);
     if (!room) return;
 
-    if (room.persistTimer) clearTimeout(room.persistTimer);
+    this.persistence.cancelScheduledPersist(documentId);
     if (room.cleanupTimer) clearTimeout(room.cleanupTimer);
     room.ydoc.destroy();
     this.rooms.delete(documentId);
@@ -511,7 +509,7 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     );
 
     // Cancel any pending persistence — we don't want to overwrite the restored state
-    if (room.persistTimer) clearTimeout(room.persistTimer);
+    this.persistence.cancelScheduledPersist(documentId);
     if (room.cleanupTimer) clearTimeout(room.cleanupTimer);
 
     // Disconnect all clients — y-websocket will auto-reconnect them
@@ -528,36 +526,40 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
   // ---------------------------------------------------------------------------
 
   private schedulePersist(documentId: string, room: Room): void {
-    if (room.persistTimer) clearTimeout(room.persistTimer);
-    room.persistTimer = setTimeout(() => {
-      const state = Y.encodeStateAsUpdate(room.ydoc);
-      void this.persistence.saveDocument(documentId, state);
-      const pendingEditor = room.pendingEditor;
-      room.pendingEditor = null;
+    this.persistence.scheduleDocumentPersist(
+      documentId,
+      () => Y.encodeStateAsUpdate(room.ydoc),
+      {
+        delayMs: PERSIST_DEBOUNCE_MS,
+        onPersist: async (state) => {
+          const pendingEditor = room.pendingEditor;
+          room.pendingEditor = null;
 
-      // Trigger version snapshot — find the last editor in the room
-      const lastEditorUserId =
-        pendingEditor?.userId ?? this.getLastEditorUserId(room);
-      if (lastEditorUserId) {
-        void this.versionsService.onDocumentIdle(
-          documentId,
-          state,
-          lastEditorUserId,
-        );
-      }
+          // Trigger version snapshot — find the last editor in the room
+          const lastEditorUserId =
+            pendingEditor?.userId ?? this.getLastEditorUserId(room);
+          if (lastEditorUserId) {
+            await this.versionsService.onDocumentIdle(
+              documentId,
+              state,
+              lastEditorUserId,
+            );
+          }
 
-      if (pendingEditor) {
-        void this.activityService.record({
-          documentId,
-          type: ActivityType.EDIT_BATCH,
-          actorId: pendingEditor.userId,
-          actorName:
-            pendingEditor.email === 'anonymous' ? 'Guest' : pendingEditor.email,
-        });
-      }
-
-      room.persistTimer = null;
-    }, PERSIST_DEBOUNCE_MS);
+          if (pendingEditor) {
+            await this.activityService.record({
+              documentId,
+              type: ActivityType.EDIT_BATCH,
+              actorId: pendingEditor.userId,
+              actorName:
+                pendingEditor.email === 'anonymous'
+                  ? 'Guest'
+                  : pendingEditor.email,
+            });
+          }
+        },
+      },
+    );
   }
 
   broadcastActivity(documentId: string, activity: ActivitySummary): void {
@@ -580,6 +582,7 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     const room = this.rooms.get(documentId);
     if (!room) return false;
 
+    this.persistence.cancelScheduledPersist(documentId);
     const state = Y.encodeStateAsUpdate(room.ydoc);
     await this.persistence.saveDocument(documentId, state);
     return true;

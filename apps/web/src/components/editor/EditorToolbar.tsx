@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import type { ConnectionStatus, CollaborationUser, CollabSnapshot } from '@/lib/collab/useCollaboration';
+import type { ConnectionStatus, CollabSnapshot } from '@/lib/collab/useCollaboration';
 
 interface EditorToolbarProps {
   editor: Editor | null;
@@ -18,7 +18,11 @@ export function EditorToolbar({ editor, connectionStatus, collaborators }: Edito
   if (!editor) return null;
 
   return (
-    <div className="flex items-center gap-1 border-b bg-card px-3 py-1.5">
+    <div
+      className="flex items-center gap-1 border-b bg-card px-3 py-1.5"
+      role="toolbar"
+      aria-label="Editor formatting"
+    >
       {/* Format buttons */}
       <div className="flex items-center gap-0.5 rounded-lg bg-muted/50 p-0.5">
         <ToolbarButton
@@ -193,19 +197,19 @@ export function EditorToolbar({ editor, connectionStatus, collaborators }: Edito
               .filter((collab, i, arr) => arr.findIndex((c) => c.userId === collab.userId) === i)
               .slice(0, 5)
               .map((collab, index) => (
-              <Tooltip key={`${collab.userId}-${index}`}>
-                <TooltipTrigger render={<span />}>
-                  <div
-                    className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-card text-[10px] font-semibold text-white shadow-sm transition-transform hover:scale-110 hover:z-10"
-                    style={{ backgroundColor: collab.color }}
-                    title={collab.displayName}
-                  >
-                    {collab.displayName.charAt(0).toUpperCase()}
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>{collab.displayName}</TooltipContent>
-              </Tooltip>
-            ))}
+                <Tooltip key={`${collab.userId}-${index}`}>
+                  <TooltipTrigger render={<span />}>
+                    <div
+                      className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-card text-[10px] font-semibold text-white shadow-sm transition-transform hover:scale-110 hover:z-10"
+                      style={{ backgroundColor: collab.color }}
+                      title={collab.displayName}
+                    >
+                      {collab.displayName.charAt(0).toUpperCase()}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>{collab.displayName}</TooltipContent>
+                </Tooltip>
+              ))}
             {collaborators.length > 5 && (
               <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-card bg-muted text-[10px] font-semibold text-muted-foreground">
                 +{collaborators.length - 5}
@@ -244,6 +248,7 @@ function ToolbarButton({
       size="icon-xs"
       onClick={onClick}
       aria-label={label}
+      aria-pressed={active}
       className={cn(active && 'shadow-sm')}
     >
       {children}
