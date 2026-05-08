@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: quill-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./api.Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: 4000
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_TTL
+        value: 15m
+      - key: JWT_REFRESH_TTL
+        value: 7d
+      - key: COOKIE_DOMAIN
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
