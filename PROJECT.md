@@ -265,7 +265,7 @@ We accept ~50KB of extra client bundle and a small memory overhead per open docu
 A pnpm-managed monorepo. Clean separation, shared types, single command to spin everything up.
 
 ```
-collabnote/
+quill-collab/
 ├── apps/
 │   ├── web/                          # Next.js 15 frontend
 │   │   ├── src/
