@@ -191,10 +191,6 @@ export function ShareModal({ documentId, open, onClose }: ShareModalProps) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// ShareRow
-// ---------------------------------------------------------------------------
-
 function ShareRow({
   share,
   isCopied,

@@ -139,10 +139,6 @@ export class SharingService {
     return { permission: share.permission };
   }
 
-  // -------------------------------------------------------------------------
-  // Helpers
-  // -------------------------------------------------------------------------
-
   private async assertDocumentOwner(
     userId: string,
     documentId: string,
@@ -177,10 +173,6 @@ export class SharingService {
       );
     }
   }
-
-  // -------------------------------------------------------------------------
-  // Serialisation
-  // -------------------------------------------------------------------------
 
   static toSummary(share: Share): ShareSummary {
     return {

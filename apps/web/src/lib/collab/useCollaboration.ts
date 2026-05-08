@@ -26,10 +26,6 @@ function pickColor(id: string): string {
   return COLORS[Math.abs(h) % COLORS.length];
 }
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
 export interface CollaborationUser {
@@ -46,10 +42,6 @@ export interface CollabSnapshot {
   /** True once IndexedDB has hydrated the Y.Doc with any locally-cached state. */
   localLoaded: boolean;
 }
-
-// ---------------------------------------------------------------------------
-// External store — holds mutable Yjs state outside of React
-// ---------------------------------------------------------------------------
 
 const EMPTY: CollabSnapshot = {
   ydoc: null,
@@ -117,7 +109,6 @@ class CollabStore {
       this.emit({ collaborators: users });
     });
 
-    // Initial snapshot with doc + provider (status stays 'connecting')
     this.emit({});
   }
 
@@ -134,8 +125,6 @@ class CollabStore {
     this.notify();
   }
 
-  // -- useSyncExternalStore interface --
-
   subscribe = (cb: () => void) => {
     this.listeners.add(cb);
     return () => {
@@ -144,8 +133,6 @@ class CollabStore {
   };
 
   getSnapshot = (): CollabSnapshot => this.snapshot;
-
-  // -- internal --
 
   private emit(patch: Partial<CollabSnapshot>) {
     this.snapshot = {
@@ -164,17 +151,11 @@ class CollabStore {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Hook
-// ---------------------------------------------------------------------------
-
 export function useCollaboration(documentId: string): CollabSnapshot {
   const { user } = useAuth();
 
-  // New store per documentId — constructor has zero side effects
   const store = useMemo(() => new CollabStore(), [documentId]);
 
-  // Side effects (connect / disconnect) live in useEffect
   useEffect(() => {
     if (!user) return;
     const token = getAccessToken();
@@ -184,6 +165,5 @@ export function useCollaboration(documentId: string): CollabSnapshot {
     return () => store.destroy();
   }, [store, documentId, user]);
 
-  // Subscribe to the external store — the React 19 way
   return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }

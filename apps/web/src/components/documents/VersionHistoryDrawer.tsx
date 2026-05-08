@@ -155,10 +155,6 @@ export function VersionHistoryDrawer({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Version card
-// ---------------------------------------------------------------------------
-
 function VersionCard({
   version,
   isLatest,
@@ -282,10 +278,6 @@ function VersionCard({
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Relative time helper
-// ---------------------------------------------------------------------------
 
 function getRelativeTime(date: Date): string {
   const now = Date.now();

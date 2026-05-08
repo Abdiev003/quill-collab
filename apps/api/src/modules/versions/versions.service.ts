@@ -65,10 +65,6 @@ export class VersionsService {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // REST endpoints
-  // ---------------------------------------------------------------------------
-
   async listVersions(
     requesterId: string,
     documentId: string,
@@ -96,7 +92,6 @@ export class VersionsService {
       throw new NotFoundException('Version not found');
     }
 
-    // Write the snapshot as the new yState on the document
     await this.prisma.document.update({
       where: { id: documentId },
       data: { yState: version.ySnapshot },
@@ -127,14 +122,7 @@ export class VersionsService {
     this.logger.log(`Document ${documentId} restored to version ${versionId}`);
   }
 
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Extract plain text from a Yjs state vector for the preview field.
-   * TipTap stores content in a Y.XmlFragment named "default".
-   */
+  /** TipTap stores content in a Y.XmlFragment named "default". */
   private extractPreview(yState: Uint8Array): string {
     try {
       const doc = new Y.Doc();
@@ -165,10 +153,6 @@ export class VersionsService {
       throw new ForbiddenException('You do not have access to this document');
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Static mappers
-  // ---------------------------------------------------------------------------
 
   static toSummary(v: Version): {
     id: string;

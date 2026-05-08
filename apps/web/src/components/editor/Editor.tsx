@@ -18,10 +18,6 @@ import tippy, { type Instance as TippyInstance } from 'tippy.js';
 import { createRoot, type Root } from 'react-dom/client';
 import { type CollabSnapshot } from '@/lib/collab/useCollaboration';
 
-// ---------------------------------------------------------------------------
-// Suggestion render helpers (creates a floating popup with React)
-// ---------------------------------------------------------------------------
-
 function createSuggestionRenderer() {
   return {
     onStart: (props: {
@@ -111,10 +107,6 @@ function createSuggestionRenderer() {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Main Editor component
-// ---------------------------------------------------------------------------
-
 interface EditorProps {
   collab: CollabSnapshot;
 }
@@ -122,9 +114,8 @@ interface EditorProps {
 export function Editor({ collab }: EditorProps) {
   const { ydoc, provider, connectionStatus, collaborators, localLoaded } = collab;
 
-  // Gate on local hydration, not WS. Once IndexedDB has loaded any cached
-  // state into the Y.Doc, the editor can render and accept edits — even if
-  // the WebSocket is still connecting or fully offline.
+  // Gate on local hydration so offline edits are possible even when the
+  // WebSocket is still connecting or unreachable.
   if (!ydoc || !provider || !localLoaded) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -146,7 +137,6 @@ export function Editor({ collab }: EditorProps) {
   );
 }
 
-// Separated so useEditor only runs when provider is guaranteed non-null
 function EditorInner({
   ydoc,
   provider,
@@ -158,7 +148,6 @@ function EditorInner({
   connectionStatus: CollabSnapshot['connectionStatus'];
   collaborators: CollabSnapshot['collaborators'];
 }) {
-  // Build suggestion renderer once
   const suggestionRendererRef = useRef(createSuggestionRenderer());
 
   const editor = useEditor(
@@ -217,7 +206,6 @@ function EditorInner({
     [ydoc, provider],
   );
 
-  // Cleanup editor on unmount
   useEffect(() => {
     return () => {
       editor?.destroy();

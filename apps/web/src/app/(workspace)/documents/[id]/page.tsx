@@ -58,10 +58,6 @@ export default function DocumentEditorPage() {
   return <DocumentEditor documentId={document.id} initialTitle={document.title} />;
 }
 
-// ---------------------------------------------------------------------------
-// Document editor — owns the collaboration connection
-// ---------------------------------------------------------------------------
-
 function DocumentEditor({
   documentId,
   initialTitle,
@@ -92,10 +88,6 @@ function DocumentEditor({
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Inline-editable document title + version history + share button
-// ---------------------------------------------------------------------------
 
 function DocumentHeader({
   documentId,

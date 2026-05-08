@@ -225,10 +225,6 @@ export function EditorToolbar({ editor, connectionStatus, collaborators }: Edito
   );
 }
 
-// -------------------------------------------------------------------
-// Sub-components
-// -------------------------------------------------------------------
-
 function ToolbarButton({
   label,
   active,

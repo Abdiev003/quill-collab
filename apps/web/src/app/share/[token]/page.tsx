@@ -88,10 +88,6 @@ export default function SharePage() {
   return <SharedEditor share={state.share} shareToken={token} />;
 }
 
-// ---------------------------------------------------------------------------
-// External store for share collab — mirrors CollabStore from useCollaboration
-// ---------------------------------------------------------------------------
-
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
 interface ShareCollabSnapshot {
@@ -138,7 +134,6 @@ class ShareCollabStore {
       this.emit({ connectionStatus: mapped });
     });
 
-    // Initial snapshot with doc + provider
     this.emit({});
     ws.connect();
   }
@@ -188,10 +183,6 @@ function useShareCollaboration(documentId: string, shareToken: string): ShareCol
   return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }
 
-// ---------------------------------------------------------------------------
-// Shared editor — connects via share token, no JWT needed
-// ---------------------------------------------------------------------------
-
 function SharedEditor({ share, shareToken }: { share: ResolvedShare; shareToken: string }) {
   const isReadOnly = share.permission === 'READ';
   const { ydoc, provider, connectionStatus } = useShareCollaboration(share.documentId, shareToken);
@@ -222,10 +213,6 @@ function SharedEditor({ share, shareToken }: { share: ResolvedShare; shareToken:
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Header
-// ---------------------------------------------------------------------------
 
 function SharedEditorHeader({
   title,
@@ -279,10 +266,6 @@ function SharedEditorHeader({
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Editor content
-// ---------------------------------------------------------------------------
 
 function SharedEditorContent({
   ydoc,

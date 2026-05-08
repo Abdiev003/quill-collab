@@ -61,20 +61,15 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     private readonly activityService: ActivityService,
   ) {}
 
-  // ---------------------------------------------------------------------------
-  // Attach raw ws.Server to the NestJS HTTP server on startup
-  // ---------------------------------------------------------------------------
-
   onModuleInit() {
     const httpServer: HttpServer =
       this.httpAdapterHost.httpAdapter.getHttpServer();
 
-    // Create a ws.Server with noServer so we control the upgrade ourselves
+    // noServer: we own the HTTP upgrade so Yjs (/:documentId) and activity
+    // (/activity/:documentId) traffic can be routed before reaching ws.
     this.wss = new WebSocketServer({ noServer: true });
 
     httpServer.on('upgrade', (req, socket, head) => {
-      // Accept all upgrade requests. Yjs uses /:documentId, activity uses
-      // /activity/:documentId so JSON messages never touch the Yjs protocol.
       this.wss.handleUpgrade(req, socket, head, (ws) => {
         const url = new URL(req.url ?? '', 'http://localhost');
         if (url.pathname.startsWith('/activity/')) {
@@ -87,10 +82,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
 
     this.logger.log('WebSocket server attached to HTTP server');
   }
-
-  // ---------------------------------------------------------------------------
-  // Connection lifecycle
-  // ---------------------------------------------------------------------------
 
   private async handleConnection(
     client: WebSocket,
@@ -119,7 +110,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
       let meta: ClientMeta;
 
       if (token) {
-        // Authenticate via JWT
         let payload: JwtPayload;
         try {
           payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
@@ -138,7 +128,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
           accessLevel: 'owner',
         };
       } else {
-        // Authenticate via share token
         const shareResult = await this.sharingService.validateShareToken(
           shareToken!,
           documentId,
@@ -158,23 +147,19 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
         };
       }
 
-      // Get or create room
       const room = await this.getOrCreateRoom(documentId);
 
-      // Cancel room cleanup if it was scheduled
       if (room.cleanupTimer) {
         clearTimeout(room.cleanupTimer);
         room.cleanupTimer = null;
       }
 
-      // Register client in room
       room.clients.set(client, meta);
 
       this.logger.log(
         `Client connected: user=${meta.userId} doc=${documentId} (${room.clients.size} in room)`,
       );
 
-      // Send sync step 1
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, CollabMessageType.SYNC);
       syncProtocol.writeSyncStep1(encoder, room.ydoc);
@@ -188,7 +173,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
       syncProtocol.writeSyncStep2(stateEncoder, room.ydoc);
       this.sendBinary(client, encoding.toUint8Array(stateEncoder));
 
-      // Send current awareness state to the new client
       const awarenessEncoder = encoding.createEncoder();
       encoding.writeVarUint(awarenessEncoder, CollabMessageType.AWARENESS);
       encoding.writeVarUint8Array(
@@ -200,12 +184,10 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
       );
       this.sendBinary(client, encoding.toUint8Array(awarenessEncoder));
 
-      // Listen for binary messages from this client
       client.on('message', (data: ArrayBuffer | Buffer) => {
         this.handleMessage(client, room, data);
       });
 
-      // Handle close
       client.on('close', () => {
         this.handleDisconnect(client);
       });
@@ -275,7 +257,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
         `Client disconnected: user=${meta?.userId} doc=${documentId} (${room.clients.size} remaining)`,
       );
 
-      // If room is empty, schedule cleanup + final persistence
       if (room.clients.size === 0) {
         this.schedulePersist(documentId, room);
         room.cleanupTimer = setTimeout(() => {
@@ -288,7 +269,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleDestroy(): void {
-    // Persist all rooms on shutdown
     for (const [documentId, room] of this.rooms.entries()) {
       this.persistence.cancelScheduledPersist(documentId);
       if (room.cleanupTimer) clearTimeout(room.cleanupTimer);
@@ -306,10 +286,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     this.wss?.close();
     this.logger.log('All rooms persisted and cleaned up on shutdown');
   }
-
-  // ---------------------------------------------------------------------------
-  // Message handling
-  // ---------------------------------------------------------------------------
 
   private handleMessage(
     client: WebSocket,
@@ -386,13 +362,12 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
         throw new Error(`Unknown sync message type: ${syncMessageType}`);
     }
 
-    // If we wrote a response (sync step 2 or update), send it back
     if (encoding.length(encoder) > 1) {
       this.sendBinary(client, encoding.toUint8Array(encoder));
     }
 
-    // Broadcast is handled by ydoc.on('update') in getOrCreateRoom.
-    // Only schedule persistence here.
+    // Broadcast is handled by ydoc.on('update') in getOrCreateRoom — we only
+    // schedule persistence here, otherwise updates would fan out twice.
     const documentId = meta?.documentId;
     if (
       documentId &&
@@ -412,10 +387,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     awarenessProtocol.applyAwarenessUpdate(room.awareness, update, null);
   }
 
-  // ---------------------------------------------------------------------------
-  // Room management
-  // ---------------------------------------------------------------------------
-
   private async getOrCreateRoom(documentId: string): Promise<Room> {
     const existing = this.rooms.get(documentId);
     if (existing) return existing;
@@ -423,7 +394,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     const ydoc = new Y.Doc();
     const awareness = new awarenessProtocol.Awareness(ydoc);
 
-    // Load persisted state
     const savedState = await this.persistence.loadDocument(documentId);
     if (savedState) {
       Y.applyUpdate(ydoc, savedState);
@@ -437,7 +407,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
       cleanupTimer: null,
     };
 
-    // Broadcast updates to all clients
     ydoc.on('update', (update: Uint8Array, origin: unknown) => {
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, CollabMessageType.SYNC);
@@ -451,7 +420,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
       }
     });
 
-    // Broadcast awareness changes
     awareness.on(
       'update',
       ({
@@ -521,10 +489,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     this.rooms.delete(documentId);
   }
 
-  // ---------------------------------------------------------------------------
-  // Persistence
-  // ---------------------------------------------------------------------------
-
   private schedulePersist(documentId: string, room: Room): void {
     this.persistence.scheduleDocumentPersist(
       documentId,
@@ -535,7 +499,6 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
           const pendingEditor = room.pendingEditor;
           room.pendingEditor = null;
 
-          // Trigger version snapshot — find the last editor in the room
           const lastEditorUserId =
             pendingEditor?.userId ?? this.getLastEditorUserId(room);
           if (lastEditorUserId) {
@@ -588,18 +551,13 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     return true;
   }
 
-  /** Find the userId of the last (or any) editor currently in the room */
+  /** Heuristic: any currently-connected client is treated as the last editor. */
   private getLastEditorUserId(room: Room): string | null {
-    // Return the first connected client's userId as the "last editor"
     for (const [, meta] of room.clients) {
       return meta.userId;
     }
     return null;
   }
-
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
 
   private sendBinary(client: WebSocket, data: Uint8Array): void {
     if (client.readyState === client.OPEN) {
