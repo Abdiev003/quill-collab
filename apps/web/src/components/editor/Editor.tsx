@@ -2,19 +2,24 @@
 
 import Placeholder from '@tiptap/extension-placeholder';
 import StarterKit from '@tiptap/starter-kit';
-import { EditorContent, type JSONContent, useEditor } from '@tiptap/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useUpdateContent } from '@/hooks/useDocument';
-import { EditorToolbar, type SaveStatus } from './EditorToolbar';
+import Collaboration from '@tiptap/extension-collaboration';
+import { EditorContent, useEditor } from '@tiptap/react';
+import { useRef, useEffect } from 'react';
+import * as Y from 'yjs';
+import type { WebsocketProvider } from 'y-websocket';
+import { EditorToolbar } from './EditorToolbar';
 import {
   SlashCommandExtension,
   slashCommands,
   type SlashCommandItem,
 } from './SlashCommandExtension';
 import { SlashCommandMenu, type SlashCommandMenuRef } from './SlashCommandMenu';
-import type { ReactRenderer } from '@tiptap/react';
 import tippy, { type Instance as TippyInstance } from 'tippy.js';
 import { createRoot, type Root } from 'react-dom/client';
+import {
+  useCollaboration,
+  type CollabSnapshot,
+} from '@/lib/collab/useCollaboration';
 
 // ---------------------------------------------------------------------------
 // Suggestion render helpers (creates a floating popup with React)
@@ -115,104 +120,120 @@ function createSuggestionRenderer() {
 
 interface EditorProps {
   documentId: string;
-  initialContent: JSONContent | null;
 }
 
-const SAVE_DEBOUNCE_MS = 1000;
+export function Editor({ documentId }: EditorProps) {
+  const { ydoc, provider, connectionStatus, collaborators } = useCollaboration(documentId);
 
-export function Editor({ documentId, initialContent }: EditorProps) {
-  const updateContent = useUpdateContent(documentId);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
-  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Wait until WebSocket connects — the 'connected' event triggers a
+  // re-render via connectionStatus, at which point refs hold valid instances.
+  if (!ydoc || !provider || connectionStatus !== 'connected') {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="flex flex-col items-center gap-3 animate-fade-in">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-transparent border-t-muted-foreground border-r-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Connecting to document…</p>
+        </div>
+      </div>
+    );
+  }
 
+  return (
+    <EditorInner
+      ydoc={ydoc}
+      provider={provider}
+      connectionStatus={connectionStatus}
+      collaborators={collaborators}
+    />
+  );
+}
+
+// Separated so useEditor only runs when provider is guaranteed non-null
+function EditorInner({
+  ydoc,
+  provider,
+  connectionStatus,
+  collaborators,
+}: {
+  ydoc: Y.Doc;
+  provider: WebsocketProvider;
+  connectionStatus: CollabSnapshot['connectionStatus'];
+  collaborators: CollabSnapshot['collaborators'];
+}) {
   // Build suggestion renderer once
   const suggestionRendererRef = useRef(createSuggestionRenderer());
 
-  const handleSave = useCallback(
-    (json: Record<string, unknown>) => {
-      setSaveStatus('saving');
-      updateContent.mutate(json, {
-        onSuccess: () => {
-          setSaveStatus('saved');
-          // Auto-fade back to idle after 2s
-          if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-          savedTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
+  const editor = useEditor(
+    {
+      extensions: [
+        StarterKit.configure({
+          heading: { levels: [1, 2, 3] },
+          // Disable undo/redo — Collaboration handles it via Yjs
+          undoRedo: false,
+        }),
+        Placeholder.configure({
+          placeholder: "Type '/' for commands…",
+        }),
+        Collaboration.configure({
+          document: ydoc,
+          provider,
+        }),
+        SlashCommandExtension.configure({
+          suggestion: {
+            items: ({ query }: { query: string }) =>
+              slashCommands.filter((cmd) => cmd.title.toLowerCase().includes(query.toLowerCase())),
+            render: () => {
+              const renderer = suggestionRendererRef.current;
+              let state: ReturnType<typeof renderer.onStart> | null = null;
+
+              return {
+                onStart: (props: Parameters<typeof renderer.onStart>[0]) => {
+                  state = renderer.onStart(props);
+                },
+                onUpdate: (props: Parameters<typeof renderer.onUpdate>[0]) => {
+                  if (state) renderer.onUpdate(props, state);
+                },
+                onKeyDown: (props: Parameters<typeof renderer.onKeyDown>[0]) => {
+                  if (state) return renderer.onKeyDown(props, state);
+                  return false;
+                },
+                onExit: () => {
+                  if (state) renderer.onExit(state);
+                  state = null;
+                },
+              };
+            },
+          },
+        }),
+      ],
+      editorProps: {
+        attributes: {
+          class: 'prose prose-zinc dark:prose-invert max-w-none focus:outline-none px-6 py-4',
         },
-        onError: () => {
-          setSaveStatus('error');
-        },
-      });
+      },
+      immediatelyRender: false,
     },
-    [updateContent],
+    [ydoc, provider],
   );
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-      }),
-      Placeholder.configure({
-        placeholder: "Type '/' for commands…",
-      }),
-      SlashCommandExtension.configure({
-        suggestion: {
-          items: ({ query }: { query: string }) =>
-            slashCommands.filter((cmd) => cmd.title.toLowerCase().includes(query.toLowerCase())),
-          render: () => {
-            const renderer = suggestionRendererRef.current;
-            let state: ReturnType<typeof renderer.onStart> | null = null;
-
-            return {
-              onStart: (props: Parameters<typeof renderer.onStart>[0]) => {
-                state = renderer.onStart(props);
-              },
-              onUpdate: (props: Parameters<typeof renderer.onUpdate>[0]) => {
-                if (state) renderer.onUpdate(props, state);
-              },
-              onKeyDown: (props: Parameters<typeof renderer.onKeyDown>[0]) => {
-                if (state) return renderer.onKeyDown(props, state);
-                return false;
-              },
-              onExit: () => {
-                if (state) renderer.onExit(state);
-                state = null;
-              },
-            };
-          },
-        },
-      }),
-    ],
-    content: initialContent ?? undefined,
-    onUpdate: ({ editor: ed }) => {
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
-      debounceTimer.current = setTimeout(() => {
-        const json = ed.getJSON();
-        handleSave(json as Record<string, unknown>);
-      }, SAVE_DEBOUNCE_MS);
-    },
-    editorProps: {
-      attributes: {
-        class: 'prose prose-zinc dark:prose-invert max-w-none focus:outline-none px-6 py-4',
-      },
-    },
-    immediatelyRender: false,
-  });
-
-  // Cleanup timers on unmount
+  // Cleanup editor on unmount
   useEffect(() => {
     return () => {
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      editor?.destroy();
     };
-  }, []);
+  }, [editor]);
 
   return (
     <div className="flex h-full flex-col">
-      <EditorToolbar editor={editor} saveStatus={saveStatus} />
+      <EditorToolbar
+        editor={editor}
+        connectionStatus={connectionStatus}
+        collaborators={collaborators}
+      />
       <div className="flex-1 overflow-y-auto">
         <EditorContent editor={editor} className="min-h-full" />
       </div>
     </div>
   );
 }
+

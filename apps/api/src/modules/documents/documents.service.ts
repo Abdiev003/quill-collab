@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Document } from '@prisma/client';
-import type { DocumentDetail, DocumentSummary } from '@quill-collab/shared';
+import type { DocumentSummary } from '@quill-collab/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 
 @Injectable()
@@ -25,8 +25,12 @@ export class DocumentsService {
     });
   }
 
-  async findOne(ownerId: string, id: string): Promise<Document> {
-    return this.assertOwned(ownerId, id, { allowTrashed: false });
+  async findOne(_requesterId: string, id: string): Promise<Document> {
+    const doc = await this.prisma.document.findUnique({ where: { id } });
+    if (!doc || doc.deletedAt !== null) {
+      throw new NotFoundException('Document not found');
+    }
+    return doc;
   }
 
   create(ownerId: string, input: { title?: string }): Promise<Document> {
@@ -43,18 +47,6 @@ export class DocumentsService {
     return this.prisma.document.update({
       where: { id },
       data: { title: title.trim() },
-    });
-  }
-
-  async updateContent(
-    ownerId: string,
-    id: string,
-    content: Record<string, unknown>,
-  ): Promise<Document> {
-    await this.assertOwned(ownerId, id, { allowTrashed: false });
-    return this.prisma.document.update({
-      where: { id },
-      data: { content: content as never },
     });
   }
 
@@ -114,10 +106,8 @@ export class DocumentsService {
     };
   }
 
-  static toDetail(doc: Document): DocumentDetail {
-    return {
-      ...DocumentsService.toSummary(doc),
-      content: (doc.content as Record<string, unknown>) ?? null,
-    };
+  /** In Phase 4+, document content is managed via Yjs WS — detail = summary */
+  static toDetail(doc: Document): DocumentSummary {
+    return DocumentsService.toSummary(doc);
   }
 }

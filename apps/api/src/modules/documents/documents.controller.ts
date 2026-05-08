@@ -8,16 +8,14 @@ import {
   Param,
   Patch,
   Post,
-  Put,
   UseGuards,
 } from '@nestjs/common';
-import type { DocumentDetail, DocumentSummary } from '@quill-collab/shared';
+import type { DocumentSummary } from '@quill-collab/shared';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
-import { UpdateContentDto } from './dto/update-content.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 
 @UseGuards(JwtAuthGuard)
@@ -43,7 +41,7 @@ export class DocumentsController {
   async getOne(
     @CurrentUser() jwt: JwtPayload,
     @Param('id') id: string,
-  ): Promise<DocumentDetail> {
+  ): Promise<DocumentSummary> {
     const doc = await this.documents.findOne(jwt.sub, id);
     return DocumentsService.toDetail(doc);
   }
@@ -65,16 +63,6 @@ export class DocumentsController {
   ): Promise<DocumentSummary> {
     const doc = await this.documents.rename(jwt.sub, id, dto.title);
     return DocumentsService.toSummary(doc);
-  }
-
-  @Put(':id/content')
-  async updateContent(
-    @CurrentUser() jwt: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: UpdateContentDto,
-  ): Promise<DocumentDetail> {
-    const doc = await this.documents.updateContent(jwt.sub, id, dto.content);
-    return DocumentsService.toDetail(doc);
   }
 
   @HttpCode(HttpStatus.NO_CONTENT)

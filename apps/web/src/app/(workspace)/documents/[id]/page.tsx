@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Editor } from '@/components/editor/Editor';
 import { useDocument } from '@/hooks/useDocument';
 import { useRenameDocument } from '@/hooks/useDocuments';
-import type { JSONContent } from '@tiptap/react';
 
 export default function DocumentEditorPage() {
   const params = useParams();
@@ -63,10 +62,7 @@ export default function DocumentEditorPage() {
     <div className="flex h-full flex-col">
       <DocumentHeader documentId={document.id} initialTitle={document.title} />
       <div className="flex-1 overflow-hidden">
-        <Editor
-          documentId={document.id}
-          initialContent={(document.content as JSONContent) ?? null}
-        />
+        <Editor documentId={document.id} />
       </div>
     </div>
   );

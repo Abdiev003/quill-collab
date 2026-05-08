@@ -22,7 +22,7 @@ model Document {
   title     String    @default("Untitled")
   ownerId   String
   owner     User      @relation("DocumentOwner", fields: [ownerId], references: [id])
-  content   Json?
+  yState    Bytes?
   deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

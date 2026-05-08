@@ -6,15 +6,15 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-
-export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+import type { ConnectionStatus, CollaborationUser, CollabSnapshot } from '@/lib/collab/useCollaboration';
 
 interface EditorToolbarProps {
   editor: Editor | null;
-  saveStatus: SaveStatus;
+  connectionStatus: CollabSnapshot['connectionStatus'];
+  collaborators: CollabSnapshot['collaborators'];
 }
 
-export function EditorToolbar({ editor, saveStatus }: EditorToolbarProps) {
+export function EditorToolbar({ editor, connectionStatus, collaborators }: EditorToolbarProps) {
   if (!editor) return null;
 
   return (
@@ -184,9 +184,35 @@ export function EditorToolbar({ editor, saveStatus }: EditorToolbarProps) {
         </ToolbarButton>
       </div>
 
-      {/* Save status */}
-      <div className="ml-auto">
-        <SaveStatusIndicator status={saveStatus} />
+      {/* Right side: collaborator avatars + connection status */}
+      <div className="ml-auto flex items-center gap-2">
+        {/* Collaborator avatars */}
+        {collaborators.length > 0 && (
+          <div className="flex items-center -space-x-1.5">
+            {collaborators.slice(0, 5).map((collab) => (
+              <Tooltip key={collab.userId}>
+                <TooltipTrigger>
+                  <div
+                    className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-card text-[10px] font-semibold text-white shadow-sm transition-transform hover:scale-110 hover:z-10"
+                    style={{ backgroundColor: collab.color }}
+                    title={collab.displayName}
+                  >
+                    {collab.displayName.charAt(0).toUpperCase()}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>{collab.displayName}</TooltipContent>
+              </Tooltip>
+            ))}
+            {collaborators.length > 5 && (
+              <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-card bg-muted text-[10px] font-semibold text-muted-foreground">
+                +{collaborators.length - 5}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Connection status */}
+        <ConnectionStatusIndicator status={connectionStatus} />
       </div>
     </div>
   );
@@ -240,9 +266,9 @@ function ToolbarButton({
   );
 }
 
-function SaveStatusIndicator({ status }: { status: SaveStatus }) {
+function ConnectionStatusIndicator({ status }: { status: ConnectionStatus }) {
   switch (status) {
-    case 'saving':
+    case 'connecting':
       return (
         <Badge variant="secondary" className="gap-1.5 animate-fade-in font-normal">
           <svg className="h-3 w-3 animate-spin" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -266,35 +292,27 @@ function SaveStatusIndicator({ status }: { status: SaveStatus }) {
               strokeDashoffset="22"
             />
           </svg>
-          Saving…
+          Connecting…
         </Badge>
       );
-    case 'saved':
+    case 'connected':
       return (
         <Badge
           variant="secondary"
           className="gap-1.5 animate-fade-in font-normal text-emerald-600 dark:text-emerald-400"
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="3.5 8.5 6.5 11.5 12.5 5.5" />
-          </svg>
-          Saved
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+          Live
         </Badge>
       );
-    case 'error':
+    case 'disconnected':
       return (
         <Badge variant="destructive" className="gap-1.5 animate-fade-in font-normal">
-          Save failed
+          <span className="h-2 w-2 rounded-full bg-current opacity-60" />
+          Offline
         </Badge>
       );
     default:
