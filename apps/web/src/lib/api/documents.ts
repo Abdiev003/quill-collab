@@ -1,6 +1,8 @@
 import type {
   CreateDocumentRequest,
+  DocumentDetail,
   DocumentSummary,
+  UpdateContentRequest,
   UpdateDocumentRequest,
 } from '@quill-collab/shared';
 import { api } from './client';
@@ -39,4 +41,18 @@ export function restoreDocument(id: string): Promise<DocumentSummary> {
 
 export function permanentlyDeleteDocument(id: string): Promise<void> {
   return api<void>(`/documents/${id}/permanent`, { method: 'DELETE' });
+}
+
+export function getDocument(id: string): Promise<DocumentDetail> {
+  return api<DocumentDetail>(`/documents/${id}`);
+}
+
+export function updateDocumentContent(
+  id: string,
+  input: UpdateContentRequest,
+): Promise<DocumentDetail> {
+  return api<DocumentDetail>(`/documents/${id}/content`, {
+    method: 'PUT',
+    json: input,
+  });
 }

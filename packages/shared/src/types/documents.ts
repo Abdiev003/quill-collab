@@ -7,10 +7,18 @@ export interface DocumentSummary {
   deletedAt: string | null;
 }
 
+export interface DocumentDetail extends DocumentSummary {
+  content: Record<string, unknown> | null;
+}
+
 export interface CreateDocumentRequest {
   title?: string;
 }
 
 export interface UpdateDocumentRequest {
   title: string;
+}
+
+export interface UpdateContentRequest {
+  content: Record<string, unknown>;
 }

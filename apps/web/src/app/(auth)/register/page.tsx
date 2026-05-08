@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { register as apiRegister } from '@/lib/api/auth';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { RegisterSchema, type RegisterValues } from '@/lib/auth/schemas';
@@ -29,93 +33,119 @@ export default function RegisterPage() {
       setSession(user, accessToken);
       router.replace('/documents');
     } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : 'Registration failed',
-      );
+      setSubmitError(err instanceof Error ? err.message : 'Registration failed');
     }
   });
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 dark:bg-black">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-4 rounded-lg bg-white p-6 shadow-sm dark:bg-zinc-900"
-        noValidate
-      >
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Create your Quill account
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Already have one?{' '}
-            <Link
-              href="/login"
-              className="font-medium text-zinc-900 underline dark:text-zinc-100"
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-sm animate-fade-in">
+        {/* Logo */}
+        <div className="mb-8 flex items-center justify-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
             >
-              Sign in
-            </Link>
-          </p>
+              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+            </svg>
+          </div>
+          <span className="text-xl font-semibold tracking-tight">Quill</span>
         </div>
 
-        <Field
-          label="Display name"
-          autoComplete="name"
-          error={errors.displayName?.message}
-          {...registerField('displayName')}
-        />
-        <Field
-          label="Email"
-          type="email"
-          autoComplete="email"
-          error={errors.email?.message}
-          {...registerField('email')}
-        />
-        <Field
-          label="Password"
-          type="password"
-          autoComplete="new-password"
-          error={errors.password?.message}
-          {...registerField('password')}
-        />
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Create your account</CardTitle>
+            <CardDescription>
+              Already have one?{' '}
+              <Link
+                href="/login"
+                className="font-medium text-foreground underline underline-offset-2 hover:opacity-70"
+              >
+                Sign in
+              </Link>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={onSubmit} className="space-y-4" noValidate>
+              <div className="space-y-2">
+                <Label htmlFor="displayName">Display name</Label>
+                <Input
+                  id="displayName"
+                  autoComplete="name"
+                  placeholder="Your name"
+                  {...registerField('displayName')}
+                />
+                {errors.displayName && (
+                  <p className="text-xs text-destructive">{errors.displayName.message}</p>
+                )}
+              </div>
 
-        {submitError ? (
-          <p className="text-sm text-red-600" role="alert">
-            {submitError}
-          </p>
-        ) : null}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  {...registerField('email')}
+                />
+                {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+              </div>
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
-        >
-          {isSubmitting ? 'Creating account…' : 'Create account'}
-        </button>
-      </form>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                  {...registerField('password')}
+                />
+                {errors.password && (
+                  <p className="text-xs text-destructive">{errors.password.message}</p>
+                )}
+              </div>
+
+              {submitError && (
+                <div
+                  className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-sm text-destructive"
+                  role="alert"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                    className="shrink-0"
+                  >
+                    <circle cx="8" cy="8" r="6" />
+                    <line x1="8" y1="5" x2="8" y2="8.5" />
+                    <circle cx="8" cy="11" r="0.5" fill="currentColor" />
+                  </svg>
+                  {submitError}
+                </div>
+              )}
+
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? 'Creating account…' : 'Create account'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
-  );
-}
-
-function Field({
-  label,
-  error,
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & {
-  label: string;
-  error?: string;
-}) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">
-        {label}
-      </span>
-      <input
-        {...props}
-        className="block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-950"
-      />
-      {error ? (
-        <span className="mt-1 block text-xs text-red-600">{error}</span>
-      ) : null}
-    </label>
   );
 }

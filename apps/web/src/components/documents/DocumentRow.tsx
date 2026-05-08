@@ -1,7 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import type { DocumentSummary } from '@quill-collab/shared';
 import { useEffect, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   useRenameDocument,
   useSoftDeleteDocument,
@@ -33,10 +36,19 @@ export function DocumentRow({ doc }: { doc: DocumentSummary }) {
   };
 
   return (
-    <li className="group flex items-center gap-3 border-b border-zinc-200 px-4 py-3 last:border-b-0 dark:border-zinc-800">
+    <div className="group flex items-center gap-3 rounded-xl border bg-card px-4 py-3.5 transition-shadow hover:shadow-sm">
+      {/* Doc icon */}
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground" aria-hidden="true">
+          <rect x="3" y="2" width="10" height="12" rx="1.5" />
+          <line x1="6" y1="6" x2="10" y2="6" />
+          <line x1="6" y1="9" x2="9" y2="9" />
+        </svg>
+      </div>
+
       <div className="min-w-0 flex-1">
         {editing ? (
-          <input
+          <Input
             ref={inputRef}
             value={draft ?? ''}
             onChange={(e) => setDraft(e.target.value)}
@@ -45,31 +57,54 @@ export function DocumentRow({ doc }: { doc: DocumentSummary }) {
               if (e.key === 'Enter') commit();
               if (e.key === 'Escape') setDraft(null);
             }}
-            className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
+            className="h-7"
             maxLength={200}
           />
         ) : (
-          <button
-            type="button"
-            onClick={() => setDraft(doc.title)}
-            className="block w-full truncate text-left text-sm font-medium text-zinc-900 hover:underline dark:text-zinc-100"
-            title="Click to rename"
-          >
-            {doc.title || 'Untitled'}
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/documents/${doc.id}`}
+              className="block truncate text-sm font-medium text-foreground hover:underline"
+            >
+              {doc.title || 'Untitled'}
+            </Link>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="opacity-0 transition-opacity group-hover:opacity-100"
+              onClick={() => setDraft(doc.title)}
+              aria-label="Rename document"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" />
+              </svg>
+            </Button>
+          </div>
         )}
-        <p className="mt-0.5 text-xs text-zinc-500">
+        <p className="mt-0.5 text-xs text-muted-foreground">
           Updated {new Date(doc.updatedAt).toLocaleString()}
         </p>
       </div>
-      <button
-        type="button"
+
+      <Button
+        variant="destructive"
+        size="xs"
+        className="opacity-0 transition-opacity group-hover:opacity-100"
         onClick={() => deleteMutation.mutate({ id: doc.id })}
         disabled={deleteMutation.isPending}
-        className="rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 disabled:opacity-30 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-red-950/30"
       >
         Delete
-      </button>
-    </li>
+      </Button>
+    </div>
   );
 }

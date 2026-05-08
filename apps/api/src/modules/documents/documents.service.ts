@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Document } from '@prisma/client';
-import type { DocumentSummary } from '@quill-collab/shared';
+import type { DocumentDetail, DocumentSummary } from '@quill-collab/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 
 @Injectable()
@@ -25,6 +25,10 @@ export class DocumentsService {
     });
   }
 
+  async findOne(ownerId: string, id: string): Promise<Document> {
+    return this.assertOwned(ownerId, id, { allowTrashed: false });
+  }
+
   create(ownerId: string, input: { title?: string }): Promise<Document> {
     return this.prisma.document.create({
       data: {
@@ -39,6 +43,18 @@ export class DocumentsService {
     return this.prisma.document.update({
       where: { id },
       data: { title: title.trim() },
+    });
+  }
+
+  async updateContent(
+    ownerId: string,
+    id: string,
+    content: Record<string, unknown>,
+  ): Promise<Document> {
+    await this.assertOwned(ownerId, id, { allowTrashed: false });
+    return this.prisma.document.update({
+      where: { id },
+      data: { content: content as never },
     });
   }
 
@@ -95,6 +111,13 @@ export class DocumentsService {
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
       deletedAt: doc.deletedAt ? doc.deletedAt.toISOString() : null,
+    };
+  }
+
+  static toDetail(doc: Document): DocumentDetail {
+    return {
+      ...DocumentsService.toSummary(doc),
+      content: (doc.content as Record<string, unknown>) ?? null,
     };
   }
 }
