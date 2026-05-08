@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
+import { IndexeddbPersistence } from 'y-indexeddb';
 import { getAccessToken } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 
@@ -42,6 +43,8 @@ export interface CollabSnapshot {
   provider: WebsocketProvider | null;
   connectionStatus: ConnectionStatus;
   collaborators: CollaborationUser[];
+  /** True once IndexedDB has hydrated the Y.Doc with any locally-cached state. */
+  localLoaded: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -53,6 +56,7 @@ const EMPTY: CollabSnapshot = {
   provider: null,
   connectionStatus: 'connecting',
   collaborators: [],
+  localLoaded: false,
 };
 
 class CollabStore {
@@ -60,6 +64,7 @@ class CollabStore {
   private snapshot: CollabSnapshot = EMPTY;
   private ydoc: Y.Doc | null = null;
   private provider: WebsocketProvider | null = null;
+  private persistence: IndexeddbPersistence | null = null;
 
   /** Open a Yjs connection. Safe to call from useEffect. */
   connect(
@@ -69,6 +74,14 @@ class CollabStore {
     token: string,
   ) {
     const doc = new Y.Doc();
+
+    // Local-first: hydrate from IndexedDB before/while WS catches up.
+    // CRDT merge handles any divergence when the WS state arrives.
+    const persistence = new IndexeddbPersistence(`quill-doc-${documentId}`, doc);
+    persistence.once('synced', () => {
+      this.emit({ localLoaded: true });
+    });
+
     const ws = new WebsocketProvider(WS_URL, documentId, doc, {
       connect: true,
       params: { token, documentId },
@@ -82,6 +95,7 @@ class CollabStore {
 
     this.ydoc = doc;
     this.provider = ws;
+    this.persistence = persistence;
 
     ws.on('status', ({ status }: { status: string }) => {
       const mapped: ConnectionStatus =
@@ -111,9 +125,11 @@ class CollabStore {
   destroy() {
     this.provider?.disconnect();
     this.provider?.destroy();
+    this.persistence?.destroy();
     this.ydoc?.destroy();
     this.ydoc = null;
     this.provider = null;
+    this.persistence = null;
     this.snapshot = EMPTY;
     this.notify();
   }
@@ -137,6 +153,7 @@ class CollabStore {
       provider: this.provider,
       connectionStatus: this.snapshot.connectionStatus,
       collaborators: this.snapshot.collaborators,
+      localLoaded: this.snapshot.localLoaded,
       ...patch,
     };
     this.notify();

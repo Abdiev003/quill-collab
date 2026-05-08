@@ -26,7 +26,7 @@ function createSuggestionRenderer() {
   return {
     onStart: (props: {
       editor: unknown;
-      clientRect: (() => DOMRect | null) | null;
+      clientRect?: (() => DOMRect | null) | null;
       query: string;
       items: SlashCommandItem[];
       command: (item: SlashCommandItem) => void;
@@ -70,7 +70,7 @@ function createSuggestionRenderer() {
       props: {
         items: SlashCommandItem[];
         command: (item: SlashCommandItem) => void;
-        clientRect: (() => DOMRect | null) | null;
+        clientRect?: (() => DOMRect | null) | null;
       },
       state: {
         popup: TippyInstance;
@@ -120,16 +120,17 @@ interface EditorProps {
 }
 
 export function Editor({ collab }: EditorProps) {
-  const { ydoc, provider, connectionStatus, collaborators } = collab;
+  const { ydoc, provider, connectionStatus, collaborators, localLoaded } = collab;
 
-  // Wait until WebSocket connects — the 'connected' event triggers a
-  // re-render via connectionStatus, at which point refs hold valid instances.
-  if (!ydoc || !provider || connectionStatus !== 'connected') {
+  // Gate on local hydration, not WS. Once IndexedDB has loaded any cached
+  // state into the Y.Doc, the editor can render and accept edits — even if
+  // the WebSocket is still connecting or fully offline.
+  if (!ydoc || !provider || !localLoaded) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3 animate-fade-in">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-transparent border-t-muted-foreground border-r-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Connecting to document…</p>
+          <p className="text-sm text-muted-foreground">Loading document…</p>
         </div>
       </div>
     );
