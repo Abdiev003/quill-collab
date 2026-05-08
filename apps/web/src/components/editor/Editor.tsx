@@ -17,7 +17,6 @@ import { SlashCommandMenu, type SlashCommandMenuRef } from './SlashCommandMenu';
 import tippy, { type Instance as TippyInstance } from 'tippy.js';
 import { createRoot, type Root } from 'react-dom/client';
 import {
-  useCollaboration,
   type CollabSnapshot,
 } from '@/lib/collab/useCollaboration';
 
@@ -119,11 +118,11 @@ function createSuggestionRenderer() {
 // ---------------------------------------------------------------------------
 
 interface EditorProps {
-  documentId: string;
+  collab: CollabSnapshot;
 }
 
-export function Editor({ documentId }: EditorProps) {
-  const { ydoc, provider, connectionStatus, collaborators } = useCollaboration(documentId);
+export function Editor({ collab }: EditorProps) {
+  const { ydoc, provider, connectionStatus, collaborators } = collab;
 
   // Wait until WebSocket connects — the 'connected' event triggers a
   // re-render via connectionStatus, at which point refs hold valid instances.

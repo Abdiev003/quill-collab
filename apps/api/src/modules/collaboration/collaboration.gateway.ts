@@ -14,6 +14,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'node:http';
 import type { Server as HttpServer } from 'node:http';
 import { YjsPersistenceService } from './yjs-persistence.service';
+import { VersionsService } from '../versions/versions.service';
 import type { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Injectable } from '@nestjs/common';
 
@@ -48,6 +49,7 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     private readonly configService: ConfigService,
     private readonly persistence: YjsPersistenceService,
     private readonly httpAdapterHost: HttpAdapterHost,
+    private readonly versionsService: VersionsService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -355,6 +357,32 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     this.logger.log(`Room destroyed for document ${documentId}`);
   }
 
+  /**
+   * Called after a version restore to force all clients to reconnect.
+   * Destroys the in-memory room so the old Y.Doc doesn't persist over
+   * the restored state. Clients auto-reconnect via y-websocket.
+   */
+  resetRoom(documentId: string): void {
+    const room = this.rooms.get(documentId);
+    if (!room) return;
+
+    this.logger.log(
+      `Resetting room for document ${documentId} (${room.clients.size} clients)`,
+    );
+
+    // Cancel any pending persistence — we don't want to overwrite the restored state
+    if (room.persistTimer) clearTimeout(room.persistTimer);
+    if (room.cleanupTimer) clearTimeout(room.cleanupTimer);
+
+    // Disconnect all clients — y-websocket will auto-reconnect them
+    for (const [ws] of room.clients) {
+      ws.close(4200, 'Document restored to previous version');
+    }
+
+    room.ydoc.destroy();
+    this.rooms.delete(documentId);
+  }
+
   // ---------------------------------------------------------------------------
   // Persistence
   // ---------------------------------------------------------------------------
@@ -364,8 +392,28 @@ export class CollaborationGateway implements OnModuleInit, OnModuleDestroy {
     room.persistTimer = setTimeout(() => {
       const state = Y.encodeStateAsUpdate(room.ydoc);
       void this.persistence.saveDocument(documentId, state);
+
+      // Trigger version snapshot — find the last editor in the room
+      const lastEditorUserId = this.getLastEditorUserId(room);
+      if (lastEditorUserId) {
+        void this.versionsService.onDocumentIdle(
+          documentId,
+          state,
+          lastEditorUserId,
+        );
+      }
+
       room.persistTimer = null;
     }, PERSIST_DEBOUNCE_MS);
+  }
+
+  /** Find the userId of the last (or any) editor currently in the room */
+  private getLastEditorUserId(room: Room): string | null {
+    // Return the first connected client's userId as the "last editor"
+    for (const [, meta] of room.clients) {
+      return meta.userId;
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CollaborationModule } from './modules/collaboration/collaboration.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { UsersModule } from './modules/users/users.module';
+import { VersionsModule } from './modules/versions/versions.module';
 
 @Module({
   imports: [
@@ -26,9 +27,9 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     CollaborationModule,
     DocumentsModule,
+    VersionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
-

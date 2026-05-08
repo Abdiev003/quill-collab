@@ -27,5 +27,26 @@ model Document {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  versions Version[]
+
   @@index([ownerId, deletedAt])
+}
+
+model Version {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  /// Full Yjs state snapshot at this point in time
+  ySnapshot  Bytes
+
+  /// First ~200 chars of plain text for quick display in version list
+  preview    String
+
+  /// The userId who was last active when the snapshot was taken
+  createdBy  String
+
+  createdAt  DateTime @default(now())
+
+  @@index([documentId, createdAt])
 }

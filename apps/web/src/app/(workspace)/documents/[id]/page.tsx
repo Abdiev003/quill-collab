@@ -5,8 +5,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Editor } from '@/components/editor/Editor';
+import { VersionHistoryDrawer } from '@/components/documents/VersionHistoryDrawer';
 import { useDocument } from '@/hooks/useDocument';
 import { useRenameDocument } from '@/hooks/useDocuments';
+import { useCollaboration } from '@/lib/collab/useCollaboration';
 
 export default function DocumentEditorPage() {
   const params = useParams();
@@ -58,29 +60,60 @@ export default function DocumentEditorPage() {
     );
   }
 
-  return (
-    <div className="flex h-full flex-col">
-      <DocumentHeader documentId={document.id} initialTitle={document.title} />
-      <div className="flex-1 overflow-hidden">
-        <Editor documentId={document.id} />
-      </div>
-    </div>
-  );
+  return <DocumentEditor documentId={document.id} initialTitle={document.title} />;
 }
 
 // ---------------------------------------------------------------------------
-// Inline-editable document title
+// Document editor — owns the collaboration connection
 // ---------------------------------------------------------------------------
 
-function DocumentHeader({
+function DocumentEditor({
   documentId,
   initialTitle,
 }: {
   documentId: string;
   initialTitle: string;
 }) {
+  const collab = useCollaboration(documentId);
+
+  const disconnectProvider = useCallback(() => {
+    if (collab.provider) {
+      // eslint-disable-next-line react-hooks/immutability
+      collab.provider.shouldConnect = false;
+      collab.provider.disconnect();
+    }
+  }, [collab.provider]);
+
+  return (
+    <div className="flex h-full flex-col">
+      <DocumentHeader
+        documentId={documentId}
+        initialTitle={initialTitle}
+        disconnectProvider={disconnectProvider}
+      />
+      <div className="flex-1 overflow-hidden">
+        <Editor collab={collab} />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Inline-editable document title + version history button
+// ---------------------------------------------------------------------------
+
+function DocumentHeader({
+  documentId,
+  initialTitle,
+  disconnectProvider,
+}: {
+  documentId: string;
+  initialTitle: string;
+  disconnectProvider: () => void;
+}) {
   const [title, setTitle] = useState(initialTitle);
   const [editing, setEditing] = useState(false);
+  const [versionDrawerOpen, setVersionDrawerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const renameMutation = useRenameDocument();
 
@@ -103,47 +136,85 @@ function DocumentHeader({
   }, [title, initialTitle, documentId, renameMutation]);
 
   return (
-    <div className="border-b bg-card px-6 py-3">
-      {editing ? (
-        <Input
-          ref={inputRef}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commit();
-            if (e.key === 'Escape') {
-              setTitle(initialTitle);
-              setEditing(false);
-            }
-          }}
-          className="h-auto border-none bg-transparent px-0 py-0 text-lg font-semibold tracking-tight shadow-none focus-visible:ring-0"
-          maxLength={200}
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground transition-opacity hover:opacity-70"
-          title="Click to rename"
+    <>
+      <div className="flex items-center justify-between border-b bg-card px-6 py-3">
+        {/* Title */}
+        <div className="flex-1">
+          {editing ? (
+            <Input
+              ref={inputRef}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={commit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commit();
+                if (e.key === 'Escape') {
+                  setTitle(initialTitle);
+                  setEditing(false);
+                }
+              }}
+              className="h-auto border-none bg-transparent px-0 py-0 text-lg font-semibold tracking-tight shadow-none focus-visible:ring-0"
+              maxLength={200}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground transition-opacity hover:opacity-70"
+              title="Click to rename"
+            >
+              {title || 'Untitled'}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                className="text-muted-foreground/50"
+              >
+                <path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Version history button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setVersionDrawerOpen(true)}
+          className="gap-1.5 text-muted-foreground hover:text-foreground"
+          aria-label="Version history"
+          title="Version history"
         >
-          {title || 'Untitled'}
           <svg
-            width="14"
-            height="14"
-            viewBox="0 0 16 16"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="1.5"
+            strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            aria-hidden="true"
-            className="text-muted-foreground/50"
           >
-            <path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" />
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
           </svg>
-        </button>
-      )}
-    </div>
+          <span className="hidden sm:inline text-xs">History</span>
+        </Button>
+      </div>
+
+      {/* Version History Drawer */}
+      <VersionHistoryDrawer
+        documentId={documentId}
+        open={versionDrawerOpen}
+        onClose={() => setVersionDrawerOpen(false)}
+        disconnectProvider={disconnectProvider}
+      />
+    </>
   );
 }

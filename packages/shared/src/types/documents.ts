@@ -7,7 +7,6 @@ export interface DocumentSummary {
   deletedAt: string | null;
 }
 
-/** Document detail — content is managed via Yjs WebSocket, not REST */
 export type DocumentDetail = DocumentSummary;
 
 export interface CreateDocumentRequest {
@@ -16,4 +15,12 @@ export interface CreateDocumentRequest {
 
 export interface UpdateDocumentRequest {
   title: string;
+}
+
+export interface VersionSummary {
+  id: string;
+  documentId: string;
+  preview: string;
+  createdBy: string;
+  createdAt: string;
 }

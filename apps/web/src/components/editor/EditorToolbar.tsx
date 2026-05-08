@@ -189,9 +189,12 @@ export function EditorToolbar({ editor, connectionStatus, collaborators }: Edito
         {/* Collaborator avatars */}
         {collaborators.length > 0 && (
           <div className="flex items-center -space-x-1.5">
-            {collaborators.slice(0, 5).map((collab) => (
-              <Tooltip key={collab.userId}>
-                <TooltipTrigger>
+            {collaborators
+              .filter((collab, i, arr) => arr.findIndex((c) => c.userId === collab.userId) === i)
+              .slice(0, 5)
+              .map((collab, index) => (
+              <Tooltip key={`${collab.userId}-${index}`}>
+                <TooltipTrigger render={<span />}>
                   <div
                     className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-card text-[10px] font-semibold text-white shadow-sm transition-transform hover:scale-110 hover:z-10"
                     style={{ backgroundColor: collab.color }}
@@ -250,7 +253,7 @@ function ToolbarButton({
   if (shortcut) {
     return (
       <Tooltip>
-        <TooltipTrigger>{btn}</TooltipTrigger>
+        <TooltipTrigger render={<span />}>{btn}</TooltipTrigger>
         <TooltipContent>
           {label} <kbd className="ml-1 text-[10px] text-muted-foreground">{shortcut}</kbd>
         </TooltipContent>
@@ -260,7 +263,7 @@ function ToolbarButton({
 
   return (
     <Tooltip>
-      <TooltipTrigger>{btn}</TooltipTrigger>
+      <TooltipTrigger render={<span />}>{btn}</TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
