@@ -1,16 +1,31 @@
+import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const config = app.get(ConfigService);
 
-  const corsOrigin = process.env.CORS_ORIGIN?.split(',').map((s) =>
-    s.trim(),
-  ) ?? ['http://localhost:3000'];
+  app.use(cookieParser());
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
+  const corsOrigin = config
+    .get<string>('CORS_ORIGIN', 'http://localhost:3000')
+    .split(',')
+    .map((s) => s.trim());
 
   app.enableCors({ origin: corsOrigin, credentials: true });
 
-  const port = Number(process.env.API_PORT ?? process.env.PORT ?? 4000);
+  const port = config.get<number>('API_PORT', 4000);
   await app.listen(port);
 
   // eslint-disable-next-line no-console
