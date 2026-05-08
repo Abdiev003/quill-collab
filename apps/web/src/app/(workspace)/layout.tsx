@@ -1,3 +1,4 @@
+import { WorkspaceShell } from '@/components/sidebar/WorkspaceShell';
 import { RequireAuth } from '@/components/RequireAuth';
 
 export default function WorkspaceLayout({
@@ -5,5 +6,9 @@ export default function WorkspaceLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <RequireAuth>{children}</RequireAuth>;
+  return (
+    <RequireAuth>
+      <WorkspaceShell>{children}</WorkspaceShell>
+    </RequireAuth>
+  );
 }

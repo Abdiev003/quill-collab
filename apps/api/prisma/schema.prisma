@@ -13,4 +13,18 @@ model User {
   displayName  String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  documents Document[] @relation("DocumentOwner")
+}
+
+model Document {
+  id        String    @id @default(cuid())
+  title     String    @default("Untitled")
+  ownerId   String
+  owner     User      @relation("DocumentOwner", fields: [ownerId], references: [id])
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([ownerId, deletedAt])
 }
